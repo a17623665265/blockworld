@@ -1,0 +1,5 @@
+node_modules/
+saves/
+_cdp/
+.trae/
+*.log

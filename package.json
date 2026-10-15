@@ -1,0 +1,13 @@
+{
+  "name": "blockworld",
+  "version": "1.0.0",
+  "private": true,
+  "description": "方块世界 - 浏览器多人沙盒游戏（静态站点 + 云存档 + WebRTC 联机信令）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

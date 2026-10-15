@@ -1,0 +1,19 @@
+{
+  "name": "方块世界",
+  "short_name": "方块世界",
+  "description": "一个网页版的「我的世界」体素沙盒",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#1e2748",
+  "theme_color": "#1e2748",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

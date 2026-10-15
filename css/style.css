@@ -1,0 +1,1734 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: "Courier New", Consolas, monospace;
+  user-select: none;
+}
+
+#game-container, #game-container canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* 游戏进行中隐藏系统鼠标指针（免锁定模式也生效；菜单/背包/死亡界面自动恢复） */
+body.hide-cursor, body.hide-cursor * {
+  cursor: none !important;
+}
+
+/* ---------- 准星 ---------- */
+#crosshair {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+  display: none;
+  mix-blend-mode: difference;
+}
+#crosshair::before, #crosshair::after {
+  content: "";
+  position: absolute;
+  background: #fff;
+}
+#crosshair::before {
+  left: 50%; top: 0;
+  width: 2px; height: 100%;
+  transform: translateX(-50%);
+}
+#crosshair::after {
+  top: 50%; left: 0;
+  height: 2px; width: 100%;
+  transform: translateY(-50%);
+}
+
+/* ---------- 调试信息 ---------- */
+#debug {
+  position: fixed;
+  left: 10px;
+  top: 10px;
+  z-index: 10;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.55;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+  white-space: pre;
+}
+
+/* ---------- 操作提示 ---------- */
+#hint {
+  position: fixed;
+  right: 10px;
+  bottom: 76px;
+  z-index: 10;
+  color: rgba(255,255,255,.85);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: right;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+  display: none;
+}
+
+/* ---------- 昼夜时钟 + 天气 ---------- */
+#clock {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 14px;
+  background: rgba(12, 16, 28, .55);
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: .5px;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#clock .cl-phase {
+  font-weight: bold;
+  padding: 0 2px;
+}
+#clock .cl-phase.is-day { color: #ffd95e; }
+#clock .cl-phase.is-night { color: #a9bcec; }
+#clock .cl-weather::before { content: "· "; }
+#clock .w-clear { color: #ffe9a3; }
+#clock .w-rain { color: #9ec6ef; }
+#clock .w-storm { color: #c9b4ef; }
+
+/* ---------- 手机触屏操作 ---------- */
+html, body {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+#game-container canvas { touch-action: none; }
+
+#touch-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: none;
+  pointer-events: none;
+}
+body.is-touch-device.touch-on #touch-ui { display: block; }
+/* 手机上隐藏键盘鼠标操作提示（右下角那两行） */
+body.is-touch-device.touch-on #hint { display: none !important; }
+/* 手机上快捷栏需要可点按选格（桌面默认 pointer-events:none，用数字键 / 滚轮选） */
+body.is-touch-device.touch-on #hotbar { pointer-events: auto; }
+
+/* 左侧虚拟摇杆区域（隐形大触摸区） */
+#joy-zone {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 44vw;
+  height: 58vh;
+  pointer-events: auto;
+  touch-action: none;
+}
+#joy-base {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  margin: -59px 0 0 -59px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .10);
+  border: 2px solid rgba(255, 255, 255, .28);
+  opacity: 0;
+  transition: opacity .12s;
+  pointer-events: none;
+}
+#joy-zone.active #joy-base { opacity: 1; }
+#joy-knob {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 54px; height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .38);
+  border: 2px solid rgba(255, 255, 255, .55);
+  pointer-events: none;
+}
+
+/* 右侧按钮组 */
+#t-right {
+  position: absolute;
+  right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  pointer-events: none;
+}
+#t-toprow { display: flex; gap: 10px; pointer-events: none; }
+#t-mainrow { display: flex; gap: 14px; align-items: flex-end; pointer-events: none; }
+.tbtn {
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .35);
+  background: rgba(20, 26, 44, .42);
+  color: #fff;
+  font-size: 19px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  padding: 0;
+}
+.tbtn-sm {
+  width: 46px;
+  height: 46px;
+  font-size: 16px;
+  background: rgba(20, 26, 44, .35);
+}
+.tbtn-attack {
+  width: 78px;
+  height: 78px;
+  font-size: 22px;
+  background: rgba(150, 40, 32, .5);
+  border-color: rgba(255, 150, 130, .55);
+}
+/* 丢弃：暖琥珀色，与攻击的红色 / 普通蓝灰色区分开 */
+.tbtn-drop {
+  background: rgba(150, 96, 26, .5);
+  border-color: rgba(255, 206, 120, .6);
+}
+.tbtn-jump { width: 70px; height: 70px; }
+/* 摇杆向前推满进入奔跑：底盘 + 摇杆头亮翠绿提示 */
+#joy-zone.sprint #joy-base {
+  background: rgba(110, 230, 150, .20);
+  border-color: rgba(150, 255, 185, .9);
+}
+#joy-zone.sprint #joy-knob {
+  background: rgba(170, 255, 198, .6);
+  border-color: rgba(195, 255, 212, .95);
+}
+.tbtn.active,
+.tbtn:active {
+  background: rgba(255, 255, 255, .42);
+  transform: scale(.94);
+}
+
+/* 右上暂停 */
+#t-pause {
+  position: absolute;
+  top: calc(10px + env(safe-area-inset-top));
+  right: calc(12px + env(safe-area-inset-right));
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  background: rgba(12, 16, 28, .55);
+  color: #fff;
+  font-size: 14px;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+/* ---------- 物品栏 ---------- */
+#hotbar {
+  position: fixed;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(0,0,0,.35);
+  border: 2px solid rgba(0,0,0,.6);
+  border-radius: 6px;
+  z-index: 10;
+  pointer-events: none;
+}
+.slot {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border: 2px solid rgba(120,120,120,.9);
+  border-radius: 4px;
+  background: rgba(20,20,20,.55);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.slot.active {
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(255,255,255,.8);
+  transform: scale(1.06);
+}
+.slot .num {
+  position: absolute;
+  left: 3px; top: 1px;
+  color: #fff;
+  font-size: 11px;
+  text-shadow: 1px 1px 0 #000;
+}
+.slot .name {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 11px;
+  text-shadow: 1px 1px 0 #000;
+  opacity: 0;
+  white-space: nowrap;
+  transition: opacity .15s;
+}
+.slot.active .name { opacity: 1; }
+
+/* ---------- 手机端快捷栏缩小 ----------
+ * 用 transform 整体等比缩放而非改槽宽：槽内方块图集背景按 52px 对齐，
+ * 缩放后九格图标依旧像素清晰、不裁切。宽度断点覆盖竖屏安卓 / iPhone，
+ * 高度断点覆盖超宽机型横屏（按宽度会漏）。 */
+@media (max-width: 900px), (max-height: 500px) and (orientation: landscape) {
+  body.is-touch-device.touch-on #hotbar {
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    transform-origin: 50% 100%;
+    transform: translateX(-50%) scale(.74);
+  }
+}
+/* 360px 档竖屏手机再收一档，保证九格横排（约 512px 原始宽）不溢出 */
+@media (max-width: 380px) {
+  body.is-touch-device.touch-on #hotbar {
+    transform-origin: 50% 100%;
+    transform: translateX(-50%) scale(.66);
+  }
+}
+
+/* ---------- 手枪装弹 HUD ----------
+ * 手持手枪时出现在右下角（热键栏上方）：弹匣余量 / 备弹 / 装弹按钮。
+ * 容器 pointer-events:none 不挡视角转动与点地，仅装弹按钮可点；
+ * 桌面指针锁定时用 R 键装弹，自由鼠标 / 触屏直接点按钮。 */
+#gun-hud {
+  position: fixed;
+  right: 22px;
+  bottom: 124px;   /* 让开 #hint（bottom 76 + 两行约 42px）与热键栏 */
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  font-family: inherit;
+  text-align: right;
+}
+#gun-ammo {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  line-height: 1;
+  color: #f2f4f0;
+  text-shadow: 1px 1px 0 #000, 0 0 5px rgba(0,0,0,.85);
+}
+#gun-ammo-num { font-size: 30px; font-weight: bold; }
+#gun-ammo-num.zero { color: #ff6b5e; }
+#gun-ammo-slash { font-size: 15px; color: #d8dcd4; }
+#gun-ammo-reserve {
+  font-size: 12px;
+  color: #cfd4cb;
+  text-shadow: 1px 1px 0 #000;
+}
+#gun-reload-btn {
+  pointer-events: auto;
+  margin-top: 3px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 2px solid rgba(255,255,255,.35);
+  border-radius: 8px;
+  background: rgba(20,26,44,.55);
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 #000;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  cursor: pointer;
+}
+#gun-reload-btn:hover { background: rgba(40,50,74,.68); }
+#gun-reload-btn:active { background: rgba(255,255,255,.30); transform: scale(.96); }
+#gun-reload-btn:disabled { cursor: default; }
+/* 换弹中 / 创造模式按钮逻辑隐藏时保留占位，避免弹药数字突然下跳 */
+#gun-hud #gun-reload-btn.hidden {
+  display: inline-block !important;
+  visibility: hidden;
+}
+
+/* 触屏：抬到右侧攻击/跳跃按钮组上方避让，按钮放大到 52px 好按 */
+@media (max-width: 900px), (max-height: 500px) and (orientation: landscape) {
+  body.is-touch-device.touch-on #gun-hud {
+    right: calc(12px + env(safe-area-inset-right));
+    bottom: calc(244px + env(safe-area-inset-bottom));
+  }
+  body.is-touch-device.touch-on #gun-ammo-num { font-size: 26px; }
+  body.is-touch-device.touch-on #gun-reload-btn {
+    min-height: 52px;
+    padding: 0 18px;
+    font-size: 16px;
+  }
+}
+
+/* ---------- 遮罩菜单 ---------- */
+#overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(2px);
+}
+#overlay.hidden { display: none; }
+
+/* ---------- 合成 / 背包面板 ---------- */
+#crafting-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 手机横屏 / 刘海屏留出安全区，保证面板与关闭钮始终在可视区内 */
+  padding: max(6px, env(safe-area-inset-top))
+           max(8px, env(safe-area-inset-right))
+           max(6px, env(safe-area-inset-bottom))
+           max(8px, env(safe-area-inset-left));
+  background: rgba(0,0,0,.55);
+}
+#crafting-overlay.hidden { display: none; }
+
+.craft-panel {
+  width: min(800px, 96vw);
+  /* 限高：桌面 100% 相对 overlay 内容盒（已扣安全区）；vh/dvh 兜底移动端浏览器工具栏伸缩 */
+  max-height: 100%;
+  max-height: calc(100vh - 12px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  max-height: calc(100dvh - 12px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 20px;
+  background: linear-gradient(160deg, #3a3f47, #23262c);
+  border: 3px solid #0c0d10;
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.08);
+  color: #e8e8e8;
+  text-align: center;
+}
+.craft-panel h2 {
+  flex: 0 0 auto;
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: #ffd987;
+  margin-bottom: 14px;
+  text-shadow: 2px 2px 0 #000;
+}
+/* 头（标题）/ 尾（关闭钮）固定，仅此区域在小屏上独立滚动；
+   overflow-x 收口 hidden：纵向滚动条占宽时绝不允许出现横向滚动条 */
+.craft-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.craft-panel > button { flex: 0 0 auto; }
+/* 左右两栏：左 = 物品栏 / 背包 / 装备，右 = 合成格 / 产物 / 攻略；
+   制作时从左栏抓材料直接拖进右栏合成格，两栏同屏无需滚动 */
+.craft-cols {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+}
+.craft-col { min-width: 0; }
+.craft-col-left {
+  flex: 0 0 auto;
+  width: max-content;
+}
+.craft-col-right {
+  flex: 0 0 auto;
+  width: 270px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.craft-col-left .inv-label { margin: 2px 0 4px; }
+.craft-col-left .inv-label:first-child { margin-top: 0; }
+.craft-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+/* 人物信息：全身像 + 装备槽（左栏底部居中，紧凑不占纵向空间） */
+.char-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px auto 0;
+  padding: 8px 12px;
+  background: rgba(0,0,0,.3);
+  border: 2px solid #0c0d10;
+  border-radius: 8px;
+  width: max-content;
+}
+/* 装备槽恢复 40px 设计尺寸（data-px=40），压缩左栏高度 */
+.craft-col-left .armor-slot { width: 40px; height: 40px; }
+.char-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+#char-canvas {
+  width: 68px;
+  height: 84px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: rgba(90,110,90,.18);
+  border-radius: 6px;
+}
+#char-stats {
+  font-size: 11px;
+  color: #9aa2a0;
+  line-height: 1.5;
+  text-align: center;
+  white-space: nowrap;
+}
+#char-stats b { color: #ffd987; font-size: 13px; margin: 0 2px; }
+#char-stats span { display: block; color: #7c8480; font-size: 10px; }
+.armor-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+.armor-cap {
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: #9aa2a0;
+  margin-bottom: 1px;
+}
+.armor-slot {
+  border-color: #8a8f78;
+  background-color: rgba(30,32,24,.55);
+}
+.armor-slot.ghost::after {
+  content: attr(data-ghost);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: rgba(220,220,200,.28);
+  pointer-events: none;
+}
+.craft-arrow {
+  color: #c9c9c9;
+  font-size: 26px;
+  text-shadow: 1px 1px 0 #000;
+}
+.craft-grid {
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(0,0,0,.35);
+  border: 2px solid #0c0d10;
+  border-radius: 6px;
+}
+.craft-grid.g2 { grid-template-columns: repeat(2, 48px); }
+.craft-grid.g3 { grid-template-columns: repeat(3, 48px); }
+
+/* 合成配方攻略（右栏：单列纵向列表，区域内自滚动） */
+.recipe-guide {
+  margin: 14px 0 0;
+  width: 100%;
+}
+.craft-col-right .recipe-list {
+  grid-template-columns: 1fr;
+  max-height: 150px;
+}
+#recipe-toggle {
+  width: 100%;
+  padding: 6px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #ffd987;
+  background: rgba(0,0,0,.3);
+  border: 2px solid #0c0d10;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#recipe-toggle:hover { background: rgba(0,0,0,.5); }
+.rg-mark { font-size: 10px; margin-left: 4px; }
+.recipe-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: 196px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.recipe-list.hidden { display: none; }
+.recipe-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0,0,0,.3);
+  border: 1px solid rgba(120,120,120,.35);
+  border-radius: 6px;
+  padding: 6px 4px;
+}
+.recipe-entry.rg-locked { opacity: .42; }
+.mini-grid {
+  display: grid;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(0,0,0,.35);
+  border-radius: 4px;
+}
+.mini-cell {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(120,120,120,.7);
+  border-radius: 3px;
+  background-color: rgba(20,20,20,.55);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.mini-cell .cnt { font-size: 11px; right: 1px; }
+.mini-arrow { color: #c9c9c9; font-size: 13px; }
+.rg-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 92px;
+}
+.rg-out { border-color: #6a6f78; }
+.rg-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.rg-name { font-size: 13px; color: #e8e8e8; line-height: 1.2; }
+.rg-tag {
+  font-size: 10px;
+  color: #ffb84d;
+  border: 1px solid #8a5a1a;
+  border-radius: 3px;
+  padding: 0 4px;
+  line-height: 1.5;
+}
+
+.inv-label {
+  color: #9aa2a0;
+  font-size: 13px;
+  letter-spacing: 4px;
+  margin: 4px 0 8px;
+}
+.panel-inventory {
+  display: grid;
+  grid-template-columns: repeat(9, 48px);
+  gap: 4px;
+  justify-content: center;
+  padding: 6px;
+  background: rgba(0,0,0,.35);
+  border: 2px solid #0c0d10;
+  border-radius: 6px;
+  width: max-content;
+  margin: 0 auto;
+}
+/* 两栏布局里物品行紧贴左栏宽度，间距略收紧 */
+#crafting-overlay .panel-inventory { gap: 3px; padding: 4px; }
+/* 未装备皮革背包时，额外储物格整体置灰不可点 */
+.panel-inventory.bag-locked {
+  opacity: .45;
+  filter: grayscale(.6);
+}
+.panel-inventory.bag-locked .cslot {
+  cursor: not-allowed;
+}
+/* 背包装备槽用皮革棕边框，与护甲槽区分 */
+.bag-slot {
+  border-color: #8a6a3a;
+  background-color: rgba(40,30,16,.55);
+}
+
+/* 面板 / 网格内的小格 */
+.cslot {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border: 2px solid rgba(120,120,120,.9);
+  border-radius: 4px;
+  background-color: rgba(20,20,20,.55);
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  cursor: pointer;
+}
+.cslot:hover { border-color: #fff; }
+.out-slot {
+  width: 56px;
+  height: 56px;
+  border-color: #6a6f78;
+  background-color: rgba(20,20,20,.7);
+  cursor: pointer;
+}
+.out-slot.ready {
+  border-color: #ffd987;
+  box-shadow: 0 0 10px rgba(255,217,135,.65);
+}
+.out-slot.ready:hover { transform: scale(1.05); }
+
+/* 无敌模式创造物品栏 */
+#creative-wrap { display: none; margin: 0 auto 14px; max-width: 540px; }
+.creative-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 44px);
+  gap: 4px;
+  justify-content: center;
+  padding: 8px;
+  background: rgba(0,0,0,.35);
+  border: 2px solid #0c0d10;
+  border-radius: 6px;
+  max-height: 264px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.cslot.cre-slot {
+  width: 44px;
+  height: 44px;
+  border-color: #6a7a4a;
+  background-color: rgba(34,42,24,.6);
+}
+.cslot.cre-slot:hover {
+  border-color: #bce06a;
+  box-shadow: 0 0 8px rgba(188,224,106,.5);
+  transform: scale(1.06);
+}
+/* 创造面板：只保留创造物品栏 + 9 格快捷栏，隐藏合成/攻略/角色/皮革背包/提示；
+   左右栏容器退化为通栏块，快捷栏行居中显示 */
+#crafting-overlay.creative #creative-wrap { display: block; }
+#crafting-overlay.creative .craft-cols { display: block; }
+#crafting-overlay.creative .craft-col-right,
+#crafting-overlay.creative .char-box,
+#crafting-overlay.creative #bag-label,
+#crafting-overlay.creative #panel-bag,
+#crafting-overlay.creative .craft-tip { display: none; }
+#crafting-overlay.creative .craft-col-left { width: auto; }
+#crafting-overlay.creative .craft-panel { width: min(560px, 94vw); }
+
+/* 物品数量徽标 */
+.cnt {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  text-shadow: 1px 1px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000;
+  pointer-events: none;
+}
+.slot .cnt { font-size: 13px; }
+
+.craft-tip {
+  margin: 10px auto 8px;
+  max-width: 620px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #aeb6b3;
+}
+#craft-close {
+  padding: 8px 30px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(#6a7079, #484d55);
+  border: 2px solid #22252a;
+  border-bottom-width: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+#craft-close:hover { filter: brightness(1.15); }
+
+/* 跟随鼠标的手持物品 */
+#drag-item {
+  position: fixed;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  z-index: 60;
+  pointer-events: none;
+  display: none;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
+.menu {
+  width: min(560px, 92vw);
+  max-height: 94vh;
+  padding: 24px 40px 22px;
+  background: linear-gradient(160deg, #3a3f47, #23262c);
+  border: 3px solid #0c0d10;
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.08);
+  color: #e8e8e8;
+  text-align: center;
+  /* 纵向弹性布局：标题/按钮固定，攻略列表占据中间剩余高度并内部滚动；
+     极矮屏（≤300px 高）攻略区压到 0 仍放不下时，整个菜单纵向可滚，任何按钮都不会丢失 */
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.menu h1 {
+  flex-shrink: 0;
+  font-size: 36px;
+  letter-spacing: 6px;
+  color: #7ec850;
+  text-shadow: 3px 3px 0 #2c4a1c, 5px 5px 0 rgba(0,0,0,.5);
+  margin-bottom: 4px;
+}
+.menu .sub {
+  flex-shrink: 0;
+  color: #b7c0bd;
+  font-size: 14px;
+  margin-bottom: 14px;
+}
+.menu .controls {
+  flex: 1 1 auto;
+  min-height: 60px;
+  list-style: none;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.9;
+  color: #cfd6d2;
+  margin: 0 0 16px;
+  padding: 2px 14px 2px 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #5a636c #2c3036;
+}
+.menu .controls::-webkit-scrollbar { width: 10px; }
+.menu .controls::-webkit-scrollbar-track {
+  background: #2c3036;
+  border-radius: 5px;
+}
+.menu .controls::-webkit-scrollbar-thumb {
+  background: #5a636c;
+  border-radius: 5px;
+  border: 2px solid #2c3036;
+}
+.menu .controls::-webkit-scrollbar-thumb:hover { background: #6f7984; }
+.key {
+  display: inline-block;
+  min-width: 92px;
+  text-align: center;
+  padding: 1px 8px;
+  margin-right: 8px;
+  background: #11141a;
+  border: 1px solid #555d68;
+  border-bottom-width: 3px;
+  border-radius: 4px;
+  color: #ffd987;
+  font-size: 12px;
+}
+#play-btn {
+  flex-shrink: 0;
+  display: block;
+  margin: 0 auto 12px;
+  padding: 12px 46px;
+  font-family: inherit;
+  font-size: 20px;
+  letter-spacing: 4px;
+  color: #fff;
+  background: linear-gradient(#6ab04c, #4a8f30);
+  border: 2px solid #2c551b;
+  border-bottom-width: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#play-btn:hover { filter: brightness(1.12); }
+#play-btn:active { transform: translateY(2px); border-bottom-width: 2px; }
+.menu .tip { flex-shrink: 0; font-size: 12px; color: #8a928f; margin: 0; }
+.menu .btn-secondary, .menu #save-info { flex-shrink: 0; }
+
+/* 通用隐藏 & 菜单次级按钮（保存 / 开新世界） */
+.hidden { display: none !important; }
+.btn-secondary {
+  display: block;
+  margin: 0 auto 10px;
+  padding: 9px 26px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #dfe6e2;
+  background: linear-gradient(#4a5560, #363f49);
+  border: 2px solid #222930;
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.btn-secondary:hover { filter: brightness(1.18); }
+.btn-secondary:active { transform: translateY(1px); border-bottom-width: 2px; }
+#save-info { font-size: 12px; color: #9aa49e; margin: -6px 0 12px; text-align: center; }
+
+/* ---------- 菜单内设置：视角灵敏度（鼠标 / 触摸拖动共用） ---------- */
+.settings-row {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 auto 12px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #cfd6d2;
+}
+.settings-row label { white-space: nowrap; }
+#sens-value {
+  min-width: 44px;
+  text-align: right;
+  color: #ffd987;
+  font-variant-numeric: tabular-nums;
+}
+.sens-reset {
+  padding: 4px 12px;
+  min-height: 30px;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: #dfe6e2;
+  background: linear-gradient(#4a5560, #363f49);
+  border: 2px solid #222930;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.sens-reset:hover { filter: brightness(1.18); }
+#sens-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: min(220px, 38vw);
+  height: 30px;            /* 整行触摸热区，轨道视觉只有 6px */
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+#sens-slider:focus-visible { outline: 2px solid #7ec850; outline-offset: 2px; border-radius: 4px; }
+#sens-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(#4a5058, #33383f);
+  border: 1px solid #11141a;
+}
+#sens-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;       /* (轨道6 - 滑块22) / 2 */
+  border-radius: 4px;
+  background: linear-gradient(#6ab04c, #4a8f30);
+  border: 2px solid #2c551b;
+  box-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+#sens-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(#4a5058, #33383f);
+  border: 1px solid #11141a;
+}
+#sens-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: linear-gradient(#6ab04c, #4a8f30);
+  border: 2px solid #2c551b;
+  box-shadow: 0 1px 3px rgba(0,0,0,.5);
+}
+
+/* ---------- 生命值（心） ---------- */
+#hearts {
+  position: fixed;
+  left: 50%;
+  bottom: 76px;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 1px;
+  pointer-events: none;
+}
+.heart {
+  font-size: 17px;
+  line-height: 1;
+  color: #3d3d3d;
+  text-shadow: 1px 1px 0 #000;
+  position: relative;
+}
+.heart.full { color: #ff4747; }
+.heart.half { color: #3d3d3d; }
+/* 半颗心：用 ::before 只露出左半边 */
+.heart.half::before {
+  content: "\2665";
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 52%;
+  overflow: hidden;
+  color: #ff4747;
+}
+
+/* ---------- Boss 血条（紫黑龙） ---------- */
+#boss-bar {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: min(440px, 62vw);
+  pointer-events: none;
+  text-align: center;
+  animation: bossbar-in .35s ease-out;
+}
+@keyframes bossbar-in {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+.bb-name {
+  font-size: 13px;
+  letter-spacing: 3px;
+  color: #ffd9c2;
+  text-shadow: 1px 1px 0 #000, 0 0 8px rgba(255,96,32,.9);
+  margin-bottom: 4px;
+}
+.bb-track {
+  height: 12px;
+  background: rgba(20,10,8,.85);
+  border: 2px solid #140604;
+  border-radius: 2px;
+  box-shadow: 0 0 10px rgba(255,96,20,.35), inset 0 2px 3px rgba(0,0,0,.7);
+  overflow: hidden;
+}
+.bb-fill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #a41d12, #ff5a1e 55%, #ffb43b);
+  box-shadow: 0 0 8px rgba(255,120,40,.8);
+  transition: width .2s linear;
+}
+
+/* ---------- 受击红屏 ---------- */
+#hurt-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 14;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 45%, rgba(255,0,0,0) 38%, rgba(190,0,0,.55) 100%);
+}
+#hurt-flash.show { animation: hurtflash .5s ease-out forwards; }
+@keyframes hurtflash {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* ---------- 画面暗角 ---------- */
+#vignette {
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 46%, rgba(12,24,48,0) 58%, rgba(10,20,42,.22) 100%),
+    linear-gradient(to bottom, rgba(255,244,214,.05), rgba(30,50,90,.06));
+}
+
+/* ---------- 事件提示（驯服 / 骑乘等） ---------- */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 118px;
+  transform: translate(-50%, 8px);
+  z-index: 10;
+  color: #fff;
+  font-size: 14px;
+  letter-spacing: 1px;
+  padding: 7px 18px;
+  background: rgba(0,0,0,.55);
+  border: 2px solid rgba(0,0,0,.7);
+  border-radius: 5px;
+  text-shadow: 1px 1px 0 #000;
+  opacity: 0;
+  transition: opacity .18s, transform .18s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ---------- 死亡界面 ---------- */
+#death-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(120,0,0,.35);
+}
+#death-overlay.hidden { display: none; }
+.death-box {
+  padding: 34px 54px;
+  background: linear-gradient(160deg, #3a2b2b, #201717);
+  border: 3px solid #0c0d10;
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.6);
+  color: #eee;
+  text-align: center;
+}
+.death-box h2 {
+  font-size: 34px;
+  letter-spacing: 8px;
+  color: #ff6b6b;
+  text-shadow: 3px 3px 0 #4a1010;
+  margin-bottom: 10px;
+}
+.death-box .sub { color: #c8b4b4; font-size: 13px; margin-bottom: 22px; }
+#respawn-btn {
+  padding: 11px 40px;
+  font-family: inherit;
+  font-size: 18px;
+  letter-spacing: 4px;
+  color: #fff;
+  background: linear-gradient(#6ab04c, #4a8f30);
+  border: 2px solid #2c551b;
+  border-bottom-width: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#respawn-btn:hover { filter: brightness(1.12); }
+
+/* ---------- 加载 ---------- */
+#loading {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #101318;
+  color: #dfe6e2;
+  font-size: 20px;
+  letter-spacing: 3px;
+}
+#loading.hidden { display: none; }
+
+/* ---------- 工具耐久条（热栏 / 背包槽内） ---------- */
+.dur {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  bottom: 2px;
+  height: 3px;
+  background: rgba(0,0,0,.65);
+  border: 1px solid rgba(0,0,0,.8);
+  pointer-events: none;
+}
+.dur i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #3fae3f, #b7e25b);
+}
+/* 耐久较低时依次变黄、变红 */
+.dur.warn i { background: linear-gradient(90deg, #c98f1e, #ffd86b); }
+.dur.danger i { background: linear-gradient(90deg, #b02a20, #ff6a4a); }
+
+/* ---------- 挖掘裂纹进度（目标方块上的暗化罩） ---------- */
+#mine-crack {
+  pointer-events: none;
+}
+
+/* ---------- 储物箱面板 ---------- */
+#chest-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(6px, env(safe-area-inset-top))
+           max(8px, env(safe-area-inset-right))
+           max(6px, env(safe-area-inset-bottom))
+           max(8px, env(safe-area-inset-left));
+  background: rgba(0,0,0,.55);
+}
+#chest-overlay.hidden { display: none; }
+.chest-panel { width: min(480px, 94vw); }
+.chest-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 40px);
+  gap: 5px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.chest-grid .cslot { width: 40px; height: 40px; }
+#ch-close {
+  margin-top: 14px;
+  padding: 8px 30px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(#6a7079, #484d55);
+  border: 2px solid #22252a;
+  border-radius: 6px;
+  cursor: pointer;
+}
+#ch-close:hover { background: linear-gradient(#7c828c, #545960); }
+
+/* ---------- 熔炉面板 ---------- */
+#furnace-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(6px, env(safe-area-inset-top))
+           max(8px, env(safe-area-inset-right))
+           max(6px, env(safe-area-inset-bottom))
+           max(8px, env(safe-area-inset-left));
+  background: rgba(0,0,0,.55);
+}
+#furnace-overlay.hidden { display: none; }
+.furnace-panel { width: min(460px, 94vw); }
+.fu-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin: 4px 0 14px;
+}
+/* 左列：原料 / 火焰 / 燃料 */
+.fu-col {
+  display: grid;
+  grid-template-rows: 48px 22px 48px;
+  justify-items: center;
+  gap: 4px;
+}
+.fu-flame {
+  width: 26px;
+  height: 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+#fu-fire {
+  width: 16px;
+  height: 0%;
+  border-radius: 8px 8px 2px 2px;
+  background: linear-gradient(to top, #c8410a 0%, #ff7a1c 45%, #ffc24a 75%, #ffe9a0 100%);
+  transition: height .12s linear;
+  box-shadow: 0 0 8px rgba(255,140,40,.8);
+}
+#fu-fire.on { animation: fu-flicker .28s infinite alternate; }
+@keyframes fu-flicker {
+  from { transform: scaleX(1) skewX(0deg); opacity: .92; }
+  to   { transform: scaleX(.82) skewX(-6deg); opacity: 1; }
+}
+/* 中间进度箭头：底色灰三角，内层亮色表示烧炼进度 */
+.fu-progress { display: flex; align-items: center; }
+.fu-arrow {
+  position: relative;
+  width: 52px;
+  height: 22px;
+  color: #555a62;
+  font-size: 22px;
+  line-height: 22px;
+}
+.fu-arrow span { position: relative; z-index: 1; }
+.fu-arrow i {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  overflow: hidden;
+  color: #ffd987;
+  white-space: nowrap;
+  transition: width .1s linear;
+}
+.fu-arrow i::before { content: "▶"; font-size: 22px; line-height: 22px; }
+.fu-tip {
+  margin: 0 auto 14px;
+  max-width: 400px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #aeb6b3;
+}
+/* 枪械工作台面板：冷钢灰标题，布局与熔炉一致 */
+#gunbench-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(6px, env(safe-area-inset-top))
+           max(8px, env(safe-area-inset-right))
+           max(6px, env(safe-area-inset-bottom))
+           max(8px, env(safe-area-inset-left));
+  background: rgba(0,0,0,.55);
+}
+#gunbench-overlay.hidden { display: none; }
+.gunbench-panel { width: min(460px, 94vw); }
+.gunbench-panel h2 { color: #b9c6d8; }
+#gb-close {
+  margin-top: 14px;
+  padding: 8px 30px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(#6a7079, #484d55);
+  border: 2px solid #22252a;
+  border-bottom-width: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+#gb-close:hover { filter: brightness(1.15); }
+.gb-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin: 4px 0 14px;
+}
+.gb-body .craft-arrow { color: #7d8a99; font-size: 22px; }
+.gb-tip {
+  margin: 0 auto 14px;
+  max-width: 400px;
+  font-size: 12px;
+  line-height: 1.8;
+  color: #aeb6b3;
+}
+#fu-close {
+  margin-top: 14px;
+  padding: 8px 30px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(#6a7079, #484d55);
+  border: 2px solid #22252a;
+  border-bottom-width: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+#fu-close:hover { filter: brightness(1.15); }
+
+/* ---------- 联机房间面板 ---------- */
+#net-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 22;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(2px);
+}
+#net-overlay.hidden { display: none; }
+.net-panel {
+  width: min(400px, 92vw);
+  max-height: 92vh;
+  overflow-y: auto;
+  padding: 24px 28px 26px;
+  background: linear-gradient(160deg, #3a3f47, #23262c);
+  border: 3px solid #0c0d10;
+  border-radius: 10px;
+  box-shadow: 0 18px 60px rgba(0,0,0,.6), inset 0 2px 0 rgba(255,255,255,.08);
+  color: #e8e8e8;
+  text-align: center;
+}
+.net-panel.hidden { display: none; }
+.net-panel h2 {
+  font-size: 24px;
+  letter-spacing: 4px;
+  color: #7ec850;
+  text-shadow: 2px 2px 0 #2c4a1c;
+  margin-bottom: 12px;
+}
+.net-sub {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #b7c0bd;
+  margin: 0 0 18px;
+}
+.net-sub b { color: #ffd987; }
+.net-btn {
+  display: block;
+  width: 100%;
+  margin: 0 auto 10px;
+  padding: 11px 20px;
+  font-family: inherit;
+  font-size: 16px;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(#6ab04c, #4a8f30);
+  border: 2px solid #2c551b;
+  border-bottom-width: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.net-btn:hover { filter: brightness(1.12); }
+.net-btn:active { transform: translateY(2px); border-bottom-width: 2px; }
+.net-btn-ghost {
+  background: linear-gradient(#4a5560, #363f49);
+  border-color: #222930;
+  color: #dfe6e2;
+}
+#net-room-code {
+  font-size: 46px;
+  font-weight: bold;
+  letter-spacing: 12px;
+  text-indent: 12px; /* 视觉补偿字间距 */
+  color: #ffd987;
+  text-shadow: 2px 2px 0 #000;
+  margin: 6px 0 14px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+#net-code-input {
+  display: block;
+  width: 220px;
+  margin: 0 auto 14px;
+  padding: 12px 10px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 28px;
+  letter-spacing: 10px;
+  text-indent: 10px;
+  color: #ffe9a3;
+  background: #14171c;
+  border: 2px solid #555d68;
+  border-radius: 6px;
+  outline: none;
+  -webkit-appearance: none;
+}
+#net-code-input:focus { border-color: #7ec850; }
+#net-progress-text {
+  font-size: 13px;
+  color: #cfd6d2;
+  margin: 0 0 10px;
+  min-height: 18px;
+}
+.net-bar {
+  width: 100%;
+  height: 8px;
+  margin: 0 0 16px;
+  background: #14171c;
+  border-radius: 4px;
+  overflow: hidden;
+  display: none; /* Task 3 世界传输时才显示 */
+}
+.net-panel.net-transfer .net-bar { display: block; }
+#net-progress-bar {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(#8bdc66, #5aa83e);
+  transition: width .2s ease;
+}
+.net-error-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #ff9d8a;
+  background: rgba(120,30,20,.25);
+  border: 1px solid rgba(255,120,90,.35);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0 0 16px;
+}
+
+/* ---------- 联机状态角标 ---------- */
+#net-status {
+  position: fixed;
+  top: 42px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 3px 12px;
+  border-radius: 12px;
+  background: rgba(12, 16, 28, .55);
+  color: #cfe8c8;
+  font-size: 12px;
+  letter-spacing: .5px;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#net-status.hidden { display: none; }
+
+/* ---------- 云端存档面板 ---------- */
+#cloud-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 23;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(2px);
+}
+#cloud-overlay.hidden { display: none; }
+.cloud-code-input {
+  display: block;
+  width: 240px;
+  margin: 0 auto 12px;
+  padding: 10px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 22px;
+  letter-spacing: 5px;
+  text-indent: 5px;
+  color: #ffe9a3;
+  background: #14171c;
+  border: 2px solid #555d68;
+  border-radius: 6px;
+  outline: none;
+  -webkit-appearance: none;
+}
+.cloud-code-input:focus { border-color: #7ec850; }
+.cloud-code-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.cloud-code-row .cloud-code-input { width: 190px; margin: 0; }
+.cloud-mini-btn {
+  flex: 0 0 auto;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #dfe6e2;
+  background: linear-gradient(#4a5560, #363f49);
+  border: 2px solid #222930;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cloud-mini-btn:hover { filter: brightness(1.15); }
+.cloud-mini-btn:active { transform: translateY(1px); }
+.cloud-pw-input {
+  display: block;
+  width: 240px;
+  margin: 0 auto 12px;
+  padding: 9px 10px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 2px;
+  color: #e8e8e8;
+  background: #14171c;
+  border: 2px solid #555d68;
+  border-radius: 6px;
+  outline: none;
+  -webkit-appearance: none;
+}
+.cloud-pw-input:focus { border-color: #7ec850; }
+.cloud-err {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #ff9d8a;
+  background: rgba(120,30,20,.25);
+  border: 1px solid rgba(255,120,90,.35);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0 auto 12px;
+  max-width: 280px;
+}
+.cloud-err.hidden { display: none; }
+#cloud-manage-code {
+  font-size: 40px;
+  font-weight: bold;
+  letter-spacing: 10px;
+  text-indent: 10px;
+  color: #ffd987;
+  text-shadow: 2px 2px 0 #000;
+  margin: 4px 0 10px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.cloud-status {
+  font-size: 13px;
+  color: #b7c0bd;
+  line-height: 1.6;
+  margin: 0 0 14px;
+  min-height: 18px;
+}
+.cloud-status.cloud-ok { color: #9ad87f; }
+.cloud-status.cloud-bad { color: #ff9d8a; }
+.cloud-status.cloud-wait { color: #ffd987; }
+
+/* 手机横屏紧凑化 */
+@media (max-width: 820px) and (orientation: landscape) {
+  .net-panel { padding: 14px 20px 16px; max-height: 96vh; }
+  .net-panel h2 { font-size: 19px; margin-bottom: 8px; }
+  .net-sub { font-size: 12px; margin-bottom: 10px; }
+  #net-room-code { font-size: 36px; margin: 2px 0 8px; }
+  .net-btn { padding: 8px 16px; font-size: 14px; margin-bottom: 7px; }
+  #net-code-input { padding: 8px; font-size: 22px; margin-bottom: 10px; }
+  .net-error-text { padding: 7px 10px; margin-bottom: 10px; }
+  .cloud-code-input { padding: 7px; font-size: 18px; margin-bottom: 8px; }
+  .cloud-code-row { margin-bottom: 8px; }
+  .cloud-pw-input { padding: 7px; font-size: 13px; margin-bottom: 8px; }
+  .cloud-err { padding: 6px 8px; margin-bottom: 8px; font-size: 12px; }
+  #cloud-manage-code { font-size: 30px; margin: 2px 0 6px; }
+  .cloud-status { margin-bottom: 9px; font-size: 12px; }
+  .cloud-mini-btn { padding: 7px 10px; }
+}
+
+/* 手机横屏：压缩背包 / 熔炉 / 储物箱面板纵向占用，标题与关闭钮固定、中间内容区滚动，
+   关闭钮保证 40px 触摸高度。
+   触发条件取「宽 OR 高」：宽度覆盖窄屏安卓，高度 ≤500 横屏覆盖 iPhone Pro Max 等
+   926/932pt 超宽机型（按宽度断点会漏），桌面把窗口拉很矮时同样生效 */
+@media (max-width: 960px) and (orientation: landscape),
+       (max-height: 500px) and (orientation: landscape) {
+  .craft-panel {
+    width: min(620px, 98vw);
+    padding: 8px 12px 10px;
+    border-radius: 8px;
+  }
+  .craft-panel h2 { font-size: 17px; letter-spacing: 2px; margin-bottom: 8px; }
+  /* 两栏合成面板：压缩槽位与间距，物品栏（左）与合成格（右）同屏可见无需滚动 */
+  #crafting-overlay .craft-cols { gap: 10px; }
+  #crafting-overlay .craft-col-right { width: 216px; }
+  #crafting-overlay .craft-area { gap: 10px; }
+  #crafting-overlay .craft-arrow { font-size: 20px; }
+  #crafting-overlay .craft-cols .cslot { width: 36px; height: 36px; }
+  #crafting-overlay .craft-cols .panel-inventory {
+    grid-template-columns: repeat(9, 36px);
+    gap: 3px;
+    padding: 4px;
+  }
+  #crafting-overlay .craft-grid { gap: 3px; padding: 4px; }
+  #crafting-overlay .craft-grid.g2 { grid-template-columns: repeat(2, 36px); }
+  #crafting-overlay .craft-grid.g3 { grid-template-columns: repeat(3, 36px); }
+  /* 特异性与 .craft-cols .cslot 持平、顺序在后：产物格保持 44px 强调尺寸 */
+  #crafting-overlay .craft-cols .out-slot { width: 44px; height: 44px; }
+  #crafting-overlay .char-box { gap: 8px; margin-top: 6px; padding: 6px 8px; }
+  #crafting-overlay .craft-col-left .armor-slot { width: 34px; height: 34px; }
+  #char-canvas { width: 48px; height: 60px; }
+  #char-stats { font-size: 10px; line-height: 1.3; }
+  .armor-cap { font-size: 10px; letter-spacing: 2px; }
+  #crafting-overlay .craft-col-right .mini-cell { width: 22px; height: 22px; }
+  #crafting-overlay .craft-col-right .recipe-list { max-height: 84px; }
+  /* 矮横屏：长说明文字隐藏（关闭钮始终固定可见），给物品栏与合成格让位 */
+  #crafting-overlay .craft-tip { display: none; }
+  /* 无敌模式创造物品栏：小横屏缩格、限高，保证关闭钮始终可见可点 */
+  #creative-wrap { margin-bottom: 8px; }
+  .creative-grid {
+    grid-template-columns: repeat(9, 36px);
+    gap: 3px;
+    padding: 5px;
+    max-height: 132px;
+  }
+  .cslot.cre-slot { width: 36px; height: 36px; }
+  .inv-label { font-size: 12px; letter-spacing: 3px; margin: 2px 0 4px; }
+  .craft-tip { font-size: 11px; line-height: 1.6; margin: 8px auto 6px; }
+  .fu-body { gap: 14px; margin: 2px 0 8px; }
+  .chest-grid { gap: 4px; margin-bottom: 8px; }
+  .craft-panel > button {
+    margin-top: 8px;
+    min-height: 40px;
+    padding: 9px 24px;
+    font-size: 15px;
+  }
+  /* 主菜单 / 暂停菜单：设置行与各按钮纵向收紧，保证进入世界钮固定可见 */
+  .menu { padding: 8px 18px 10px; }
+  .menu h1 { font-size: 24px; margin-bottom: 2px; }
+  .menu .sub { font-size: 12px; margin-bottom: 8px; }
+  /* min-height 归零：极矮屏（≤320px 高）时攻略区可收缩到 0，把空间让给固定按钮 */
+  .menu .controls { min-height: 0; margin-bottom: 8px; font-size: 12px; line-height: 1.6; }
+  .settings-row { gap: 8px; margin-bottom: 8px; font-size: 12px; }
+  #sens-slider { width: min(150px, 30vw); height: 28px; }
+  .sens-reset { min-height: 28px; padding: 3px 10px; }
+  #play-btn { padding: 8px 30px; font-size: 16px; margin-bottom: 8px; }
+  .menu .btn-secondary { padding: 6px 18px; font-size: 13px; margin-bottom: 6px; }
+  /* 鼠标锁定提示在触屏 / 矮横屏无意义，隐藏给按钮腾空间 */
+  .menu .tip { display: none; }
+}
+
+/* 极窄横屏（≤600px，老款小屏手机）：两栏上下堆叠，仍共享同一面板，
+   压缩槽位规则沿用上一个横屏断点 */
+@media (max-width: 600px) and (orientation: landscape) {
+  #crafting-overlay .craft-cols { flex-direction: column; align-items: center; gap: 8px; }
+  #crafting-overlay .craft-col-left,
+  #crafting-overlay .craft-col-right { width: max-content; }
+}
+
+/* 手机竖屏：面板单列堆叠（物品栏在上、合成格在下），槽位缩到 34px 适应窄宽 */
+@media (max-width: 920px) and (orientation: portrait) {
+  #crafting-overlay .craft-panel {
+    width: min(420px, 96vw);
+    padding: 14px 12px 16px;
+    border-radius: 8px;
+  }
+  #crafting-overlay .craft-panel h2 { font-size: 18px; margin-bottom: 10px; }
+  #crafting-overlay .craft-cols { flex-direction: column; align-items: center; gap: 12px; }
+  #crafting-overlay .craft-col-left,
+  #crafting-overlay .craft-col-right { width: 100%; }
+  #crafting-overlay .craft-cols .cslot { width: 34px; height: 34px; }
+  #crafting-overlay .craft-cols .panel-inventory {
+    grid-template-columns: repeat(9, 34px);
+    gap: 3px;
+    padding: 4px;
+  }
+  #crafting-overlay .craft-grid { gap: 3px; padding: 4px; }
+  #crafting-overlay .craft-grid.g2 { grid-template-columns: repeat(2, 34px); }
+  #crafting-overlay .craft-grid.g3 { grid-template-columns: repeat(3, 34px); }
+  #crafting-overlay .craft-cols .out-slot { width: 42px; height: 42px; }
+  #char-canvas { width: 64px; height: 80px; }
+  #crafting-overlay .craft-col-right .mini-cell { width: 24px; height: 24px; }
+  #crafting-overlay .craft-col-right .recipe-list { max-height: 150px; }
+  /* 竖屏长说明文字隐藏，保证物品栏与合成格滚动距离最短 */
+  #crafting-overlay .craft-tip { display: none; }
+  #crafting-overlay .craft-panel > button { min-height: 40px; font-size: 15px; }
+}
